@@ -1,0 +1,24 @@
+1. časť modelu
+
+Tovar prichádza po 1 kamióne každých 12 hodín
+1 kamión obsahuje cca. 15 paliet tovaru
+
+Keď tovar dorazí pri obchod, tak čaká pri vstupnej bráne na príjemcu
+Čakanie trvá exp(30 min)
+
+Príjemca má na starosti vykladanie tovaru, ktoré trvá exp(30 min)
+
+Po vyložení tovaru z kamióna príjemca naloží papierové kartóny a plastový odpad na kamión
+Toto trvá exp(20 min)
+
+Príjemca následne vykoná upratovanie dvora a okolia prijímacej brány, čo trvá exp(1 hod)
+
+Po uprataní zaznamená prijatie tovaru do systému - exp(10 min)
+
+
+2. časť modelu
+
+Po vyložení tovar čaká na jednotlivých vykladačov, kým ho zoberú zo skladu a začnú vykladať - exp(10 min)
+
+Vykladanie 1 palety 1 vykladačovi trvá exp(1 hod)
+
