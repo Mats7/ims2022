@@ -8,5 +8,5 @@ run: clean all
 clean:
 	rm -f ./ims
 zip:
-	zip 11_xcimme00_xpaulo04.zip ims.cpp Makefile dokumentacia.pdf
+	zip 13_xcimme00_xkrist24.zip ims.cpp Makefile dokumentacia.pdf
 
