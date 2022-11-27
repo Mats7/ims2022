@@ -40,7 +40,7 @@ Facility BaliacaLinka("Linka na pripravu online objednavok");
 void parseArguments(int argc, char *argv[])
 {
     int c;
-    std::string getoptStr = "+:k:r:j:d:";
+    std::string getoptStr = "+:k:r:j:d:a:b:";
 
     while((c = getopt (argc, argv, getoptStr.c_str())) != -1)
     switch(c)
@@ -58,13 +58,21 @@ void parseArguments(int argc, char *argv[])
             break;
 
         case 'j':
-            //experiment 3 - zmena trvania pripravy jedla
             dCasPripravyJedla = atof(optarg);
             break;
         
         case 'd':
-            //experiment 4 - zmena trvania dopravy online objednavky
             dCasDoruceniaOnline = atof(optarg);
+            break;
+
+        case 'a':
+            //experiment 3 - zmena frekvencie osobnej objednavky
+            dCasPrichoduOsobnychObj = atof(optarg);
+            break;
+
+        case 'b':
+            //experiment 3 - zmena frekvencie online objednavky
+            dCasPrichoduOnlineObj = atof(optarg);
             break;
 
         default:
