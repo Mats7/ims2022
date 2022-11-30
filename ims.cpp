@@ -14,14 +14,16 @@ const double dCasExperimentu =          365*24*60;
 double dPocetKucharov =                 5;
 double dPocetRozvozarov =               3;
 
-const double dCasPrichoduOnlineObj =    7;
-const double dCasPrichoduOsobnychObj =  10;
+int IntervalPrichoduObjednavej =       5;
 const double dCasPrijatiaOsobne =       1;
 const double dCasPrijatiaOnline =       1;
 double dCasPripravyJedla =              17;
 const double dCasBaleniaOnlineObj =     2;
 const double dCasDoruceniaOsobne =      3;
 double dCasDoruceniaOnline =            15;
+const int CasOnlineTimeoutu =           60;
+const int CasOsobnihoTimeoutu =         30;
+long canceled =                         0;
 
 
 //Kuchari pripravujuci jedlo
@@ -34,13 +36,14 @@ Store Rozvozari("Rozvozari", dPocetRozvozarov);
 Facility BaliacaLinka("Linka na pripravu online objednavok");
 
 
+
 /**
  * ziskavanie argumentov pre vykonanie experimentov
 */
 void parseArguments(int argc, char *argv[])
 {
     int c;
-    std::string getoptStr = "+:k:r:j:d:a:b:";
+    std::string getoptStr = "+:k:r:j:d:a:";
 
     while((c = getopt (argc, argv, getoptStr.c_str())) != -1)
     switch(c)
@@ -67,12 +70,7 @@ void parseArguments(int argc, char *argv[])
 
         case 'a':
             //experiment 3 - zmena frekvencie osobnej objednavky
-            dCasPrichoduOsobnychObj = atof(optarg);
-            break;
-
-        case 'b':
-            //experiment 3 - zmena frekvencie online objednavky
-            dCasPrichoduOnlineObj = atof(optarg);
+            IntervalPrichoduObjednavej = atof(optarg);
             break;
 
         default:
@@ -82,19 +80,50 @@ void parseArguments(int argc, char *argv[])
 }
 
 
+
+/**
+ * Event - timeout pro prijeti objednavek
+*/
+class Timeout : public Event
+{
+    Process *ptr;
+
+    public:
+        Timeout(double t, Process *p) : ptr(p)
+        {
+            Activate(Time+t);
+        }
+
+        void Behavior()
+        {
+            ptr->Out();
+            delete ptr;
+            Cancel();
+            canceled++;
+        }
+};
+
+
+
 /**
  * proces - tranzakcia online objednavky
 */
 class OnlineObjednavka : public Process
 {
-    void Behavior()
+    public : void Behavior()
     {
+        //nastaveny timeout
+        Event *timeout = new Timeout(CasOnlineTimeoutu, this);
+
         //objednavka sa prijima pracovnikom
         Wait(Exponential(dCasPrijatiaOnline));
 
         //kuchar zoberie objednavku na vybavenie
         Enter(Kuchari, 1);
-        
+
+        //zruseni timeout
+        delete timeout;
+
         //samotne jedlo sa pripravuje
         Wait(Exponential(dCasPripravyJedla));
         
@@ -121,15 +150,27 @@ class OnlineObjednavka : public Process
     }
 };
 
+
+
 /**
  * proces - tranzakcia osobnej objednavky
 */
 class OsobnaObjednavka : public Process
 {
+
+    //objednavky bez dovozu maji prednost
+    Priority_t Priority = 1;
+
     void Behavior()
     {
+        //nastaveni timeout
+        Event *timeout = new Timeout(CasOsobnihoTimeoutu, this);
+
         //objednavka sa prijima casnikom
         Wait(Exponential(dCasPrijatiaOsobne));
+
+        //zruseni timeoutu
+        delete timeout;
 
         //kuchar zoberie objednavku na vybavenie
         Enter(Kuchari, 1);
@@ -146,47 +187,47 @@ class OsobnaObjednavka : public Process
 };
 
 
-/**
- * generator pre vytvaranie online objednavok
-*/
-class GeneratorOnlineObjednavok : public Event
-{
-    void Behavior()
-    {
-        (new OnlineObjednavka)->Activate();
-        Activate(Time + Exponential(dCasPrichoduOnlineObj));
-    } 
-};
 
 /**
- * generator pre vytvaranie osobnych objednavok
+ * generator pre vytvaranie objednavok
 */
-class GeneratorOsobnychObjednavok : public Event
+class GeneratorObjednavok : public Event
 {
     void Behavior()
     {
-        (new OsobnaObjednavka)->Activate();
-        Activate(Time + Exponential(dCasPrichoduOsobnychObj));
-    } 
+        //60% sance, ze objednavka je online
+        if(Random() <= 0.6)
+        {
+            (new OsobnaObjednavka)->Activate();
+        }
+        //40% sance, ze objednavka je s osobnim vyzvednutim
+        else
+        {
+            (new OnlineObjednavka)->Activate();
+        }
+        Activate(Time + Exponential(IntervalPrichoduObjednavej));
+    }
 };
+
 
 
 int main(int argc, char *argv[])
 {
     parseArguments(argc, argv);
-
-    //aktivacia generatorov procesov
-    (new OsobnaObjednavka)->Activate();
-    (new OnlineObjednavka)->Activate();
+    RandomSeed(time(NULL));
 
     //inicializacia simulacie s modelovym casom
     Init(0, dCasExperimentu);
+
+    //aktivace generatoru
+    (new GeneratorObjednavok)->Activate();
     
     //spustenie simulacie
     Run();
 
     //vypis vysledkov simulacie
     cout << "OUTPUT_DATA" << endl;
+    cout << "zrušené objednávky: " << canceled << endl;
     Kuchari.Output();
     Rozvozari.Output();
     BaliacaLinka.Output();
