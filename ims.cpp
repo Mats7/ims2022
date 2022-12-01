@@ -12,17 +12,18 @@ using namespace std;
 //casove jednotky su v minutach
 const double dCasExperimentu =          365*24*60;
 double dPocetKucharov =                 5;
-double dPocetRozvozarov =               3;
+double dPocetRozvozarov =               5;
 
-int IntervalPrichoduObjednavej =       5;
+double dIntervalPrichoduObjednavok =    10;
 const double dCasPrijatiaOsobne =       1;
 const double dCasPrijatiaOnline =       1;
 double dCasPripravyJedla =              17;
 const double dCasBaleniaOnlineObj =     2;
 const double dCasDoruceniaOsobne =      3;
 double dCasDoruceniaOnline =            15;
-const int CasOnlineTimeoutu =           60;
-const int CasOsobnihoTimeoutu =         30;
+const int iCasOnlineTimeoutu =          75;
+const int iCasOsobnehoTimeoutu =        45;
+const int iCasRozvozTimeoutu =          60;
 long canceled =                         0;
 
 
@@ -34,7 +35,6 @@ Store Rozvozari("Rozvozari", dPocetRozvozarov);
 
 //Balenie online objednavok 
 Facility BaliacaLinka("Linka na pripravu online objednavok");
-
 
 
 /**
@@ -68,9 +68,9 @@ void parseArguments(int argc, char *argv[])
             dCasDoruceniaOnline = atof(optarg);
             break;
 
-        case 'a':
-            //experiment 3 - zmena frekvencie osobnej objednavky
-            IntervalPrichoduObjednavej = atof(optarg);
+        case 'f':
+            //experiment 3 - zmena frekvencie objednavok
+            dIntervalPrichoduObjednavok = atof(optarg);
             break;
 
         default:
@@ -80,9 +80,8 @@ void parseArguments(int argc, char *argv[])
 }
 
 
-
 /**
- * Event - timeout pro prijeti objednavek
+ * Event - timeout pre prijatie objednavok
 */
 class Timeout : public Event
 {
@@ -104,7 +103,6 @@ class Timeout : public Event
 };
 
 
-
 /**
  * proces - tranzakcia online objednavky
 */
@@ -112,8 +110,8 @@ class OnlineObjednavka : public Process
 {
     public : void Behavior()
     {
-        //nastaveny timeout
-        Event *timeout = new Timeout(CasOnlineTimeoutu, this);
+        //nastavenie timeout pre kuchara
+        Event *timeoutK = new Timeout(iCasOnlineTimeoutu, this);
 
         //objednavka sa prijima pracovnikom
         Wait(Exponential(dCasPrijatiaOnline));
@@ -121,8 +119,8 @@ class OnlineObjednavka : public Process
         //kuchar zoberie objednavku na vybavenie
         Enter(Kuchari, 1);
 
-        //zruseni timeout
-        delete timeout;
+        //zrusenie timeout
+        delete timeoutK;
 
         //samotne jedlo sa pripravuje
         Wait(Exponential(dCasPripravyJedla));
@@ -133,8 +131,14 @@ class OnlineObjednavka : public Process
         //objednavka caka na baliacu linku
         Seize(BaliacaLinka);
 
+        //nastavenie timeout pre rozvozara
+        Event *timeoutR = new Timeout(iCasRozvozTimeoutu, this);
+
         //zaberie rozvozara, kt. ju zabali
         Enter(Rozvozari, 1);
+
+        //zrusenie timeout
+        delete timeoutR;
 
         //objednavka sa bali na odvoz
         Wait(Exponential(dCasBaleniaOnlineObj));
@@ -146,10 +150,9 @@ class OnlineObjednavka : public Process
         Wait(Exponential(dCasBaleniaOnlineObj));
 
         //uvolni sa rozvozar
-        Leave(Rozvozari, 1);  
+        Leave(Rozvozari, 1);
     }
 };
-
 
 
 /**
@@ -158,19 +161,19 @@ class OnlineObjednavka : public Process
 class OsobnaObjednavka : public Process
 {
 
-    //objednavky bez dovozu maji prednost
+    //objednavky bez dovozu maju prednost
     Priority_t Priority = 1;
 
     void Behavior()
     {
-        //nastaveni timeout
-        Event *timeout = new Timeout(CasOsobnihoTimeoutu, this);
+        //nastavenie timeout pre kuchara
+        Event *timeoutK = new Timeout(iCasOsobnehoTimeoutu, this);
 
         //objednavka sa prijima casnikom
         Wait(Exponential(dCasPrijatiaOsobne));
 
-        //zruseni timeoutu
-        delete timeout;
+        //zrusenie timeoutu
+        delete timeoutK;
 
         //kuchar zoberie objednavku na vybavenie
         Enter(Kuchari, 1);
@@ -185,7 +188,6 @@ class OsobnaObjednavka : public Process
         Wait(Exponential(dCasDoruceniaOsobne)); 
     }
 };
-
 
 
 /**
@@ -205,10 +207,9 @@ class GeneratorObjednavok : public Event
         {
             (new OnlineObjednavka)->Activate();
         }
-        Activate(Time + Exponential(IntervalPrichoduObjednavej));
+        Activate(Time + Exponential(dIntervalPrichoduObjednavok));
     }
 };
-
 
 
 int main(int argc, char *argv[])
@@ -219,7 +220,7 @@ int main(int argc, char *argv[])
     //inicializacia simulacie s modelovym casom
     Init(0, dCasExperimentu);
 
-    //aktivace generatoru
+    //aktivacia generatoru
     (new GeneratorObjednavok)->Activate();
     
     //spustenie simulacie
