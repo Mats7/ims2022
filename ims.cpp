@@ -10,7 +10,7 @@
 using namespace std;
 
 //casove jednotky su v minutach
-const double dCasExperimentu =          365*24*60;
+double dCasExperimentu =                7*24*60;    //simulacia jedneho celeho tyzdna
 double dPocetKucharov =                 5;
 double dPocetRozvozarov =               5;
 
@@ -20,11 +20,14 @@ const double dCasPrijatiaOnline =       1;
 double dCasPripravyJedla =              17;
 const double dCasBaleniaOnlineObj =     2;
 const double dCasDoruceniaOsobne =      3;
-double dCasDoruceniaOnline =            15;
-const int iCasOnlineTimeoutu =          75;
+double dCasDoruceniaOnline =            25;
+const int iCasOnlineTimeoutu =          45;
 const int iCasOsobnehoTimeoutu =        45;
-const int iCasRozvozTimeoutu =          60;
+const int iCasRozvozTimeoutu =          45;
 long canceled =                         0;
+double dCasOnlineTimeoutuSpolu =        0;
+double dCasOsobnehoTimeoutuSpolu =      0;
+double dCasRozvozTimeoutuSpolu =        0;
 
 
 //Kuchari pripravujuci jedlo
@@ -43,9 +46,9 @@ Facility BaliacaLinka("Linka na pripravu online objednavok");
 void parseArguments(int argc, char *argv[])
 {
     int c;
-    std::string getoptStr = "+:k:r:j:d:a:";
+    std::string getoptStr = "+:k:r:j:d:f:t:";
 
-    while((c = getopt (argc, argv, getoptStr.c_str())) != -1)
+    while((c = getopt(argc, argv, getoptStr.c_str())) != -1)
     switch(c)
     {	
         case 'k':
@@ -73,9 +76,20 @@ void parseArguments(int argc, char *argv[])
             dIntervalPrichoduObjednavok = atof(optarg);
             break;
 
+        case 't':
+            dCasExperimentu = atof(optarg);
+            break;
+
         default:
             fprintf(stderr, "Nespravny parameter.\n");
-            exit(EXIT_FAILURE);
+            cout<<"Pouzitie:"<<endl
+                <<"-k : nastavi pocet kucharov"<<endl
+                <<"-r : nastavi pocet rozvozarov"<<endl
+                <<"-j : nastavi cas pripravy jedla"<<endl
+                <<"-d : nastavi cas dorucenia online obj."<<endl
+                <<"-f : nastavi cas. interval medzi objednavkami"<<endl
+                <<"-t : nastavi trvanie simulacie (v min.)"<<endl;
+            exit(1);
     }
 }
 
@@ -110,11 +124,11 @@ class OnlineObjednavka : public Process
 {
     public : void Behavior()
     {
-        //nastavenie timeout pre kuchara
-        Event *timeoutK = new Timeout(iCasOnlineTimeoutu, this);
-
         //objednavka sa prijima pracovnikom
         Wait(Exponential(dCasPrijatiaOnline));
+
+        //nastavenie timeout pre kuchara
+        Event *timeoutK = new Timeout(iCasOnlineTimeoutu, this);
 
         //kuchar zoberie objednavku na vybavenie
         Enter(Kuchari, 1);
@@ -128,9 +142,6 @@ class OnlineObjednavka : public Process
         //kuchar sa dokoncenim jedla uvolni
         Leave(Kuchari, 1);
 
-        //objednavka caka na baliacu linku
-        Seize(BaliacaLinka);
-
         //nastavenie timeout pre rozvozara
         Event *timeoutR = new Timeout(iCasRozvozTimeoutu, this);
 
@@ -140,6 +151,9 @@ class OnlineObjednavka : public Process
         //zrusenie timeout
         delete timeoutR;
 
+        //objednavka caka na baliacu linku
+        Seize(BaliacaLinka);
+
         //objednavka sa bali na odvoz
         Wait(Exponential(dCasBaleniaOnlineObj));
 
@@ -147,7 +161,7 @@ class OnlineObjednavka : public Process
         Release(BaliacaLinka);
 
         //objednavka sa dorucuje
-        Wait(Exponential(dCasBaleniaOnlineObj));
+        Wait(Exponential(dCasDoruceniaOnline));
 
         //uvolni sa rozvozar
         Leave(Rozvozari, 1);
@@ -166,17 +180,17 @@ class OsobnaObjednavka : public Process
 
     void Behavior()
     {
-        //nastavenie timeout pre kuchara
-        Event *timeoutK = new Timeout(iCasOsobnehoTimeoutu, this);
-
         //objednavka sa prijima casnikom
         Wait(Exponential(dCasPrijatiaOsobne));
 
-        //zrusenie timeoutu
-        delete timeoutK;
+        //nastavenie timeout pre kuchara
+        Event *timeoutK = new Timeout(iCasOsobnehoTimeoutu, this);
 
         //kuchar zoberie objednavku na vybavenie
         Enter(Kuchari, 1);
+
+        //zrusenie timeoutu
+        delete timeoutK;
         
         //samotne jedlo sa pripravuje
         Wait(Exponential(dCasPripravyJedla));
@@ -197,12 +211,12 @@ class GeneratorObjednavok : public Event
 {
     void Behavior()
     {
-        //60% sance, ze objednavka je online
+        //60% sance, ze objednavka je osobni
         if(Random() <= 0.6)
         {
             (new OsobnaObjednavka)->Activate();
         }
-        //40% sance, ze objednavka je s osobnim vyzvednutim
+        //40% sance, ze objednavka je online
         else
         {
             (new OnlineObjednavka)->Activate();
@@ -227,11 +241,11 @@ int main(int argc, char *argv[])
     Run();
 
     //vypis vysledkov simulacie
-    cout << "OUTPUT_DATA" << endl;
-    cout << "zrušené objednávky: " << canceled << endl;
+    cout << "Vysledky:" << endl;
     Kuchari.Output();
     Rozvozari.Output();
     BaliacaLinka.Output();
+    cout << "Zrušené objednávky: " << canceled << endl;
 
     return 0;
 }
