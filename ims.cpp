@@ -13,6 +13,7 @@ using namespace std;
 double dCasExperimentu =                7*24*60;    //simulacia jedneho celeho tyzdna
 double dPocetKucharov =                 5;
 double dPocetRozvozarov =               5;
+double dPocetCasnikov =                 2;
 
 double dIntervalPrichoduObjednavok =    10;
 const double dCasPrijatiaOsobne =       1;
@@ -36,8 +37,26 @@ Store Kuchari("Kuchari", dPocetKucharov);
 //Rozvozari online objednavok
 Store Rozvozari("Rozvozari", dPocetRozvozarov);
 
+//Casnici obsluhujuci osobne objednavky
+Store Casnici("Casnici", dPocetCasnikov);
+
 //Balenie online objednavok 
 Facility BaliacaLinka("Linka na pripravu online objednavok");
+
+
+/**
+ * vypis napovedy
+*/
+void printHelp()
+{
+    cout<< "Pouzitie:" <<endl
+        << "-k : nastavi pocet kucharov" <<endl
+        << "-r : nastavi pocet rozvozarov" <<endl
+        << "-j : nastavi cas pripravy jedla (v min.)" <<endl
+        << "-d : nastavi cas dorucenia online obj. (v min.)" <<endl
+        << "-f : nastavi cas. interval medzi objednavkami (v min.)" <<endl
+        << "-t : nastavi trvanie simulacie (v min.)" <<endl;
+}
 
 
 /**
@@ -46,7 +65,7 @@ Facility BaliacaLinka("Linka na pripravu online objednavok");
 void parseArguments(int argc, char *argv[])
 {
     int c;
-    std::string getoptStr = "+:k:r:j:d:f:t:";
+    std::string getoptStr = "+:k:r:j:d:f:t:h";
 
     while((c = getopt(argc, argv, getoptStr.c_str())) != -1)
     switch(c)
@@ -80,15 +99,14 @@ void parseArguments(int argc, char *argv[])
             dCasExperimentu = atof(optarg);
             break;
 
+        case 'h':
+            printHelp();
+            exit(1);
+            break;
+
         default:
             fprintf(stderr, "Nespravny parameter.\n");
-            cout<<"Pouzitie:"<<endl
-                <<"-k : nastavi pocet kucharov"<<endl
-                <<"-r : nastavi pocet rozvozarov"<<endl
-                <<"-j : nastavi cas pripravy jedla"<<endl
-                <<"-d : nastavi cas dorucenia online obj."<<endl
-                <<"-f : nastavi cas. interval medzi objednavkami"<<endl
-                <<"-t : nastavi trvanie simulacie (v min.)"<<endl;
+            printHelp();
             exit(1);
     }
 }
@@ -198,8 +216,13 @@ class OsobnaObjednavka : public Process
         //kuchar sa dokoncenim jedla uvolni
         Leave(Kuchari, 1);
 
+        //casnik zoberie dokocene jedlo
+        Enter(Casnici, 1);
+
         //objednavka sa odnesie
-        Wait(Exponential(dCasDoruceniaOsobne)); 
+        Wait(Exponential(dCasDoruceniaOsobne));
+
+        Leave(Casnici, 1);
     }
 };
 
@@ -240,6 +263,7 @@ int main(int argc, char *argv[])
     //spustenie simulacie
     Run();
 
+    cout << "Pouzite -h pre vypis napovedy\n" << endl;
     //vypis vysledkov simulacie
     cout << "Vysledky:" << endl;
     Kuchari.Output();
